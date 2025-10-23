@@ -1,14 +1,15 @@
-# Cloudflare Challenge TurnStile Solver
+# Cloudflare Challenge Solver
 
-Asynchronous Python solution for bypassing Cloudflare's anti-bot turnstile challenges and obtaining the `cf_clearance` cookie.
+Asynchronous Python solution for bypassing Cloudflare's anti-bot challenges, supporting both **Challenge** (cookie-based) and **Turnstile** (token-based) types.
 
 ## Features
 
--   **Asynchronous** - Built with `asyncio` and `Playwright` for high performance
--   **Stealthy** - Uses Camoufox and BrowserForge for realistic browser fingerprinting
--   **Modular** - Clean OOP design with dataclasses for cookie handling
--   **Configurable** - Customize retries, delays, OS fingerprint, and more
--   **Logging** - Built-in debug logging for troubleshooting
+- **Dual Challenge Support** - Handles both Challenge (`cf_clearance` cookie) and Turnstile (token) types
+- **Asynchronous** - Built with `asyncio` and `Playwright` for high performance
+- **Stealthy** - Uses Camoufox and BrowserForge for realistic browser fingerprinting
+- **Modular** - Clean OOP design with dataclasses for results handling
+- **Configurable** - Customize retries, delays, OS fingerprint, and more
+- **Logging** - Built-in debug logging for troubleshooting
 
 ## Installation
 
@@ -26,24 +27,48 @@ playwright install
 
 ## Usage
 
-### Basic Example
+### Basic Example - Challenge Type (Cookie)
 
 ```python
-from main import CloudflareSolver
+from main import CloudflareSolver, ChallengeType
 import asyncio
 
 async def main():
     solver = CloudflareSolver(
-        headless=True,  # Run in headless mode
-        os=["windows"],  # Windows fingerprint
+        challenge_type=ChallengeType.CHALLENGE,
+        headless=True,
+        os=["windows"],
     )
 
-    cookie = await solver.solve("https://protected-site.com")
+    result = await solver.solve("https://nopecha.com/demo/cloudflare")
 
-    if cookie:
-        print(f"Cookie obtained: {cookie.name}={cookie.value}")
+    if result:
+        print(f"Cookie obtained: {result.name}={result.value}")
     else:
         print("Failed to solve Cloudflare challenge")
+
+asyncio.run(main())
+```
+
+### Basic Example - Turnstile Type (Token)
+
+```python
+from main import CloudflareSolver, ChallengeType
+import asyncio
+
+async def main():
+    solver = CloudflareSolver(
+        challenge_type=ChallengeType.TURNSTILE,
+        headless=True,
+        os=["windows"],
+    )
+
+    result = await solver.solve("https://nopecha.com/captcha/turnstile")
+
+    if result:
+        print(f"Token obtained: {result.token}")
+    else:
+        print("Failed to solve Turnstile challenge")
 
 asyncio.run(main())
 ```
@@ -52,6 +77,7 @@ asyncio.run(main())
 
 ```python
 solver = CloudflareSolver(
+    challenge_type=ChallengeType.TURNSTILE,  # or ChallengeType.CHALLENGE
     sleep_time=5,  # Longer delay before clicking challenge
     headless=False,  # Show browser window
     os=["macos"],  # macOS fingerprint
@@ -62,34 +88,50 @@ solver = CloudflareSolver(
 
 ## API Reference
 
+### `ChallengeType` Enum
+
+Defines the type of Cloudflare challenge to solve:
+
+- `CHALLENGE` - Traditional challenge that returns `cf_clearance` cookie
+- `TURNSTILE` - Turnstile challenge that returns a token from hidden input field
+
 ### `CloudflareCookie` Dataclass
 
-Represents the Cloudflare clearance cookie with validation:
+Represents the Cloudflare clearance cookie (for Challenge type):
 
--   `name`: Cookie name (typically "cf_clearance")
--   `value`: Cookie value
--   `domain`: Cookie domain
--   `path`: Cookie path
--   `expires`: Expiration timestamp
--   `http_only`: HTTP Only flag
--   `secure`: Secure flag
--   `same_site`: SameSite policy
+- `name`: Cookie name (typically "cf_clearance")
+- `value`: Cookie value
+- `domain`: Cookie domain
+- `path`: Cookie path
+- `expires`: Expiration timestamp
+- `http_only`: HTTP Only flag
+- `secure`: Secure flag
+- `same_site`: SameSite policy
+
+### `TurnstileToken` Dataclass
+
+Represents the Turnstile token (for Turnstile type):
+
+- `token`: Token value extracted from `cf-turnstile-response` input field
 
 ### `CloudflareSolver` Class
 
 #### Parameters:
 
--   `sleep_time`: Delay before clicking challenge (default: 3)
--   `headless`: Run browser in headless mode (default: True)
--   `os`: OS fingerprint (default: ["windows"])
--   `debug`: Enable debug logging (default: False)
--   `retries`: Number of attempts to find challenge (default: 30)
+- `challenge_type`: Type of challenge to solve - `ChallengeType.CHALLENGE` or `ChallengeType.TURNSTILE` (default: `ChallengeType.CHALLENGE`)
+- `sleep_time`: Delay before clicking challenge (default: 3)
+- `headless`: Run browser in headless mode (default: True)
+- `os`: OS fingerprint (default: ["windows"])
+- `debug`: Enable debug logging (default: False)
+- `retries`: Number of attempts to find challenge (default: 30)
 
 #### Methods:
 
--   `solve(link: str)`: Solves Cloudflare challenge for given URL, returns `CloudflareCookie` or `None`
+- `solve(link: str)`: Solves Cloudflare challenge for given URL, returns `CloudflareCookie`, `TurnstileToken`, or `None`
 
 ## How It Works
+
+### Challenge Type (Cookie)
 
 1. Launches a stealthy browser instance with realistic fingerprint
 2. Navigates to the protected URL
@@ -97,6 +139,15 @@ Represents the Cloudflare clearance cookie with validation:
 4. Automatically clicks the verification checkbox
 5. Extracts the `cf_clearance` cookie upon success
 6. Returns the cookie as a validated dataclass object
+
+### Turnstile Type (Token)
+
+1. Launches a stealthy browser instance with realistic fingerprint
+2. Navigates to the protected URL
+3. Detects Cloudflare challenge iframe
+4. Automatically clicks the verification checkbox
+5. Extracts the token from `cf-turnstile-response` hidden input field
+6. Returns the token as a validated dataclass object
 
 ## Important Note
 
