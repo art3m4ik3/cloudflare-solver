@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
@@ -77,6 +78,7 @@ class CloudflareSolver:
         os: Optional[List[str]] = None,
         debug: bool = False,
         retries: int = 30,
+        proxy: Optional[str] = None,
     ) -> None:
         """Initialize solver with given parameters."""
 
@@ -88,9 +90,22 @@ class CloudflareSolver:
         self.os = os or ["windows"]
         self.debug = debug
         self.retries = retries
+        self.proxy = proxy
 
         if debug:
             logging.basicConfig(level=logging.DEBUG)
+
+    async def _human_click(self, page: Page, x: float, y: float) -> None:
+        """Move mouse to coordinates with random steps and click."""
+
+        target_x = x + random.uniform(-5, 5)
+        target_y = y + random.uniform(-5, 5)
+
+        await page.mouse.move(target_x, target_y, steps=random.randint(10, 25))
+        await asyncio.sleep(random.uniform(0.1, 0.3))
+        await page.mouse.down()
+        await asyncio.sleep(random.uniform(0.05, 0.15))
+        await page.mouse.up()
 
     async def _find_and_click_challenge_frame(self, page: Page) -> bool:
         """Find Cloudflare challenge frame and click the checkbox."""
@@ -107,7 +122,7 @@ class CloudflareSolver:
                 checkbox_y = bounding_box["y"] + bounding_box["height"] / 2
 
                 await asyncio.sleep(self.sleep_time)
-                await page.mouse.click(x=checkbox_x, y=checkbox_y)
+                await self._human_click(page, checkbox_x, checkbox_y)
 
                 return True
         return False
@@ -128,6 +143,8 @@ class CloudflareSolver:
                         logger.debug("Turnstile token found")
                         return token
 
+                await asyncio.sleep(1)
+
             logger.debug("Turnstile token not found")
             return None
         except Exception as e:
@@ -139,11 +156,14 @@ class CloudflareSolver:
     ) -> Optional[Union[CloudflareCookie, TurnstileToken]]:
         """Solve Cloudflare challenge and return result based on challenge type."""
 
+        proxy_config = {"server": self.proxy} if self.proxy else None
+
         try:
             async with AsyncCamoufox(
                 headless=self.headless,
                 os=self.os,
                 screen=Screen(max_width=1920, max_height=1080),
+                proxy=proxy_config,
             ) as browser:
                 page = await browser.new_page()
                 await page.goto(link)
@@ -175,6 +195,9 @@ class CloudflareSolver:
                     else:
                         logger.debug("cf_clearance cookie not found")
 
+                        if self.debug:
+                            await page.screenshot(path="debug_failed_challenge.png")
+
                     return self.cf_clearance
 
                 elif self.challenge_type == ChallengeType.TURNSTILE:
@@ -184,6 +207,8 @@ class CloudflareSolver:
                         self.turnstile_token = TurnstileToken(token=token)
                     else:
                         logger.debug("Turnstile token not found")
+                        if self.debug:
+                            await page.screenshot(path="debug_failed_turnstile.png")
 
                     return self.turnstile_token
 
@@ -194,7 +219,12 @@ class CloudflareSolver:
 
 if __name__ == "__main__":
     print("Turnstile Example")
-    solver = CloudflareSolver(challenge_type=ChallengeType.TURNSTILE)
+    solver = CloudflareSolver(
+        challenge_type=ChallengeType.TURNSTILE,
+        proxy="http://127.0.0.1:10808",
+        debug=True,
+        headless=False,
+    )
     result = asyncio.run(solver.solve("https://nopecha.com/captcha/turnstile"))
 
     if result:
@@ -206,7 +236,12 @@ if __name__ == "__main__":
         print("Failed to solve challenge")
 
     print("\nChallenge Example")
-    solver_challenge = CloudflareSolver(challenge_type=ChallengeType.CHALLENGE)
+    solver_challenge = CloudflareSolver(
+        challenge_type=ChallengeType.CHALLENGE,
+        proxy="http://127.0.0.1:10808",
+        debug=True,
+        headless=False,
+    )
     result_challenge = asyncio.run(
         solver_challenge.solve("https://nopecha.com/demo/cloudflare")
     )

@@ -10,6 +10,7 @@ Asynchronous Python solution for bypassing Cloudflare's anti-bot challenges, sup
 - **Modular** - Clean OOP design with dataclasses for results handling
 - **Configurable** - Customize retries, delays, OS fingerprint, and more
 - **Logging** - Built-in debug logging for troubleshooting
+- **Security** - Proxy support and humanization
 
 ## Installation
 
@@ -73,6 +74,30 @@ async def main():
 asyncio.run(main())
 ```
 
+### Proxy Usage
+
+```python
+from main import CloudflareSolver, ChallengeType
+import asyncio
+
+async def main():
+    # "http://user:pass@host:port" || "http://host:port"
+    proxy_url = "http://user:password@123.45.67.89:8080"
+
+    solver = CloudflareSolver(
+        challenge_type=ChallengeType.CHALLENGE,
+        proxy=proxy_url,
+        headless=True
+    )
+
+    result = await solver.solve("https://nopecha.com/demo/cloudflare")
+
+    if result:
+        print(f"Success! Cookie: {result.value[:20]}...")
+
+asyncio.run(main())
+```
+
 ### Advanced Configuration
 
 ```python
@@ -82,7 +107,8 @@ solver = CloudflareSolver(
     headless=False,  # Show browser window
     os=["macos"],  # macOS fingerprint
     debug=True,  # Enable verbose logging
-    retries=50  # More attempts to find challenge
+    retries=50,  # More attempts to find challenge
+    proxy="http://user:pass@host:port"  # Use a proxy server
 )
 ```
 
@@ -124,6 +150,7 @@ Represents the Turnstile token (for Turnstile type):
 - `os`: OS fingerprint (default: ["windows"])
 - `debug`: Enable debug logging (default: False)
 - `retries`: Number of attempts to find challenge (default: 30)
+- `proxy`: Proxy server URL (e.g., "http://user:pass@host:port") (default: None)
 
 #### Methods:
 
